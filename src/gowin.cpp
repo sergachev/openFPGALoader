@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <algorithm>
 
 #include "jtag.hpp"
 #include "gowin.hpp"
@@ -57,6 +58,7 @@ using namespace std;
 #  define STATUS_POR				(1 << 16)
 #  define STATUS_FLASH_LOCK			(1 << 17)
 #define EF_PROGRAM			0x71
+#define EF_READ             0x73
 #define EFLASH_ERASE		0x75
 
 /* BSCAN spi (external flash) (see below for details) */
@@ -201,6 +203,40 @@ void Gowin::programFlash()
 
 	if (_verbose)
 		displayReadReg(readStatusReg());
+}
+
+bool Gowin::dumpFlash(const std::string &filename, uint32_t base_addr, uint32_t len) {
+    if (!EnableCfg())
+        return false;
+    if(!eraseSRAM())
+        return false;
+    if (!DisableCfg())
+        return false;
+
+    auto sr = readStatusReg();
+    if (sr & STATUS_FLASH_LOCK) {
+        printError("Flash locked");
+        return false;
+    }
+
+    printInfo("Read flash ", false);
+    std::string data;
+    data.resize(len);
+    if (!readFLASH((uint8_t*) &data[0], len))
+        return false;
+    printSuccess("DONE");
+
+    printInfo("Open dump file ", false);
+    FILE *fd = fopen(filename.c_str(), "wb");
+    if (!fd) {
+        printError("FAIL");
+        return false;
+    }
+    printSuccess("DONE");
+    fwrite(data.c_str(), sizeof(uint8_t), data.size(), fd);
+    fclose(fd);
+
+    return true;
 }
 
 void Gowin::program(unsigned int offset)
@@ -499,6 +535,34 @@ bool Gowin::flashFLASH(uint8_t *data, int length)
 
 	progress.done();
 	return true;
+}
+
+bool Gowin::readFLASH(uint8_t *data, int length)
+{
+    uint8_t zeros[4] = {0};
+
+    _jtag->go_test_logic_reset();
+    wr_rd(CONFIG_ENABLE, NULL, 0, NULL, 0);
+    wr_rd(EF_READ, NULL, 0, NULL, 0);
+    // address
+    _jtag->shiftDR(zeros, NULL, 32);
+    // discard 'readable' pattern
+    _jtag->shiftDR(zeros, NULL, 32);
+
+    ProgressBar progress("read Flash", length, 50, _quiet);
+
+    for (auto i = 0; i < length; i += 4) {
+        _jtag->shiftDR(zeros, data + i, 32);
+        std::reverse(data + i, data + i + 4);
+        progress.display(i);
+    }
+
+    progress.done();
+
+    if (!DisableCfg())
+        return false;
+
+    return true;
 }
 
 /* TN653 p. 9 */

@@ -26,6 +26,8 @@ class Gowin: public Device, SPIInterface {
 		void reset() override;
 		void program(unsigned int offset) override;
 		void programFlash();
+        bool dumpFlash(const std::string &filename,
+                   uint32_t base_addr, uint32_t len) override;
 
 		/* spi interface */
 		int spi_put(uint8_t cmd, uint8_t *tx, uint8_t *rx,
@@ -44,6 +46,7 @@ class Gowin: public Device, SPIInterface {
 		bool eraseFLASH();
 		bool flashSRAM(uint8_t *data, int length);
 		bool flashFLASH(uint8_t *data, int length);
+        bool readFLASH(uint8_t *data, int length);
 		void displayReadReg(uint32_t dev);
 		uint32_t readStatusReg();
 		uint32_t readUserCode();
