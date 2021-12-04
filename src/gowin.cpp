@@ -97,9 +97,6 @@ Gowin::Gowin(Jtag *jtag, const string filename, const string &file_type,
 				throw std::runtime_error(e.what());
 			}
 		} else {
-			/* non fs file is only allowed with external flash */
-			if (!external_flash)
-				throw std::runtime_error("incompatible file format");
 			try {
 				_fs = new RawParser(_filename, false);
 			} catch (std::exception &e) {
